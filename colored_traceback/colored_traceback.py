@@ -29,8 +29,8 @@ if PYGMENTS:
         curses.setupterm()
         return curses.tigetnum('colors')
 
-    def _determine_formatter(style="default", debug=False):
-        colors = _get_term_color_support()
+    def _determine_formatter(style="default", colors=None, debug=False):
+        colors = colors or _get_term_color_support()
         if debug:
             sys.stderr.write("Detected support for %s colors\n" % colors)
         if colors == 256:
@@ -52,11 +52,12 @@ if PYGMENTS:
     )
 
     class Colorizer(object):
-        def __init__(self, style, debug=False):
+        def __init__(self, style, colors, debug=False):
             self.style = style
+            self.colors = colors
             self.debug = debug
             self.lexer = LEXER
-            self.formatter = _determine_formatter(style, debug)
+            self.formatter = _determine_formatter(style, self.colors, debug)
 
         def colorize_traceback(self, type, value, tb):
             tb_text = "".join(traceback.format_exception(type, value, tb))
@@ -67,11 +68,16 @@ if PYGMENTS:
         def stream(self):
             return translate_stream(sys.stderr)
 
-    def add_hook(always=False, style='default', debug=False):
+    def add_hook(always=False, style='default', colors=None, debug=False):
         isatty = getattr(sys.stderr, 'isatty', lambda: False)
         if always or isatty():
-            colorizer = Colorizer(style, debug)
-            sys.excepthook = colorizer.colorize_traceback
+            try:
+                import pygments # flake8:noqa
+                colorizer = Colorizer(style, colors, debug)
+                sys.excepthook = colorizer.colorize_traceback
+            except ImportError:
+                if debug:
+                    sys.stderr.write("Failed to add coloring hook; pygments not available\n")
 
 
 else:
